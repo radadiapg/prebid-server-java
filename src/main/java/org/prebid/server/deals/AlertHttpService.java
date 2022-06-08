@@ -88,9 +88,19 @@ public class AlertHttpService {
                 String.format("Service %s failed to send request %s time(s) with error message : %s",
                         serviceName, count, message);
         if (count == 1) {
+            logger.info(String.format("Sending '%s' alert request when count == 1", alertType));
             alert(alertType, alertPriority, formattedMessage);
         } else if (count % period == 0) {
+            logger.info(String.format("Sending '%s' alert request when count %% period == 0 (count: %s, period = %s)",
+                    alertType,
+                    count,
+                    period));
             alert(alertType, AlertPriority.HIGH, formattedMessage);
+        } else {
+            logger.info(String.format("Tracking '%s' alert request. count: %s, period = %s",
+                    alertType,
+                    count,
+                    period));
         }
     }
 

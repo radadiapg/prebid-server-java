@@ -110,7 +110,7 @@ class PbsPgConfig {
          "deals.alert-proxy.url"        : networkServiceContainerUri + ALERT_ENDPOINT_PATH,
          "deals.alert-proxy.username"   : PG_ENDPOINT_USERNAME,
          "deals.alert-proxy.password"   : PG_ENDPOINT_PASSWORD,
-         "deals.alert-proxy.timeout-sec": "10"
+         "deals.alert-proxy.timeout-sec": "5"
         ]
     }
 

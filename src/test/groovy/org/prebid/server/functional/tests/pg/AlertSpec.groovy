@@ -1,11 +1,13 @@
 package org.prebid.server.functional.tests.pg
 
+import org.awaitility.core.ConditionTimeoutException
 import org.mockserver.matchers.Times
 import org.prebid.server.functional.model.mock.services.generalplanner.PlansResponse
 import org.prebid.server.functional.model.request.dealsupdate.ForceDealsUpdateRequest
 import org.prebid.server.functional.util.HttpUtil
 import org.prebid.server.functional.util.PBSUtils
-import spock.lang.Ignore
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -33,7 +35,12 @@ class AlertSpec extends BasePgSpec {
     private static final String PBS_DELIVERY_CLIENT_ERROR = "pbs-delivery-stats-client-error"
     private static final Integer DEFAULT_ALERT_PERIOD = 15
 
-    @Ignore
+    private static final Logger log = LoggerFactory.getLogger(AlertSpec)
+
+    def setup() {
+        log.info("Running '${this.specificationContext.currentIteration.name}'")
+    }
+
     def "PBS should send alert request when the threshold is reached"() {
         given: "Changed Planner Register endpoint response to return bad status code"
         generalPlanner.initRegisterResponse(NOT_FOUND_404)
@@ -43,12 +50,18 @@ class AlertSpec extends BasePgSpec {
 
         and: "Initial Alert Service request count is taken"
         def initialRequestCount = alert.requestCount
+        log.info("Initial alert service request count: $initialRequestCount")
 
         when: "Initiating PBS to register its instance through the bad Planner for the first time"
         pgPbsService.sendForceDealsUpdateRequest(ForceDealsUpdateRequest.registerInstanceRequest)
 
         then: "PBS sends an alert request to the Alert Service for the first time"
-        PBSUtils.waitUntil { alert.requestCount == initialRequestCount + 1 }
+        PBSUtils.waitUntil {
+            def currentRequestCount = alert.requestCount
+            def bool = alert.requestCount == initialRequestCount + 1
+            log.info("Current request count: $currentRequestCount, initial count: $initialRequestCount, bool: $bool")
+            bool
+        }
 
         when: "Initiating PBS to register its instance through the bad Planner until the period threshold of alerts is reached"
         (2..DEFAULT_ALERT_PERIOD).forEach {
@@ -56,7 +69,22 @@ class AlertSpec extends BasePgSpec {
         }
 
         then: "PBS sends an alert request to the Alert Service for the second time"
-        PBSUtils.waitUntil { alert.requestCount == initialRequestCount + 2 }
+        try {
+            PBSUtils.waitUntil {
+                def currentRequestCount = alert.requestCount
+                def bool = alert.requestCount == initialRequestCount + 2
+                log.info("Current request count: $currentRequestCount, initial count: $initialRequestCount, bool: $bool")
+                bool
+            }
+        } catch (ConditionTimeoutException e) {
+            log.info("Awaitility ConditionTimeoutException is thrown")
+            log.error(e.message)
+            log.error(e.stackTrace as String)
+        } catch (Exception e) {
+            log.info("General exception is thrown")
+            log.error(e.message)
+            log.error(e.stackTrace as String)
+        }
 
         and: "Request has the right number of failed register attempts"
         def alertRequest = alert.recordedAlertRequest
@@ -64,6 +92,9 @@ class AlertSpec extends BasePgSpec {
                 "time(s) with error message")
 
         cleanup: "Return initial Planner response status code"
+        log.info("After test alert service request count: $alert.requestCount")
+        log.info("--------------- Container Logs ---------------")
+        log.info(pbsServiceFactory.getContainer(pgConfig.properties).logs)
         generalPlanner.initRegisterResponse()
     }
 
